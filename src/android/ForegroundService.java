@@ -25,6 +25,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.NotificationChannel;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
@@ -49,6 +50,9 @@ public class ForegroundService extends Service {
 
     // Fixed ID for the 'foreground' notification
     public static final int NOTIFICATION_ID = -574543954;
+	// Fix Bad Notification issue
+	public static final String NOTIFICATION_CHANNEL_ID_SERVICE = "de.appplant.cordova.plugin.background";
+	public static final String NOTIFICATION_CHANNEL_ID_INFO = "com.package.download_info";
 
     // Default title of the background notification
     private static final String NOTIFICATION_TITLE =
@@ -123,22 +127,25 @@ public class ForegroundService extends Service {
      * by the OS.
      */
     @SuppressLint("WakelockTimeout")
-    private void keepAwake()
-    {
-        JSONObject settings = BackgroundMode.getSettings();
-        boolean isSilent    = settings.optBoolean("silent", false);
+    private void keepAwake() {
+       JSONObject settings = BackgroundMode.getSettings();
+       boolean isSilent    = settings.optBoolean("silent", false);
+       if (!isSilent) {
+           if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+               NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+               nm.createNotificationChannel(new NotificationChannel(NOTIFICATION_CHANNEL_ID_SERVICE, "App Service", NotificationManager.IMPORTANCE_DEFAULT));
+               nm.createNotificationChannel(new NotificationChannel(NOTIFICATION_CHANNEL_ID_INFO, "Download Info", NotificationManager.IMPORTANCE_DEFAULT));
+           } else {
+               startForeground(NOTIFICATION_ID, makeNotification());
+           }
+       }
 
-        if (!isSilent) {
-            startForeground(NOTIFICATION_ID, makeNotification());
-        }
-
-        PowerManager pm = (PowerManager)getSystemService(POWER_SERVICE);
-
-        wakeLock = pm.newWakeLock(
-                PARTIAL_WAKE_LOCK, "backgroundmode:wakelock");
-
-        wakeLock.acquire();
-    }
+       PowerManager powerMgr = (PowerManager)
+               getSystemService(POWER_SERVICE);
+       wakeLock = powerMgr.newWakeLock(
+               PowerManager.PARTIAL_WAKE_LOCK, "BackgroundMode");
+       wakeLock.acquire();
+   } 
 
     /**
      * Stop background mode.
